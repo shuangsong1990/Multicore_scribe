@@ -1,0 +1,314 @@
+%
+% This is the LaTeX template file for lecture notes for EE 382C/EE 361C.
+%
+% To familiarize yourself with this template, the body contains
+% some examples of its use.  Look them over.  Then you can
+% run LaTeX on this file.  After you have LaTeXed this file then
+% you can look over the result either by printing it out with
+% dvips or using xdvi.
+%
+% This template is based on the template for Prof. Sinclair's CS 270.
+
+\documentclass[twoside]{article}
+\usepackage{graphics}
+\usepackage{graphicx}
+\usepackage{algorithm}
+\usepackage{mathtools}
+\usepackage{mathptmx}
+\usepackage{algpseudocode}
+\setlength{\oddsidemargin}{0.25 in}
+\setlength{\evensidemargin}{-0.25 in}
+\setlength{\topmargin}{-0.6 in}
+\setlength{\textwidth}{6.5 in}
+\setlength{\textheight}{8.5 in}
+\setlength{\headsep}{0.75 in}
+\setlength{\parindent}{0 in}
+\setlength{\parskip}{0.1 in}
+
+%
+% The following commands set up the lecnum (lecture number)
+% counter and make various numbering schemes work relative
+% to the lecture number.
+%
+\newcounter{lecnum}
+\renewcommand{\thepage}{\thelecnum-\arabic{page}}
+\renewcommand{\thesection}{\thelecnum.\arabic{section}}
+\renewcommand{\theequation}{\thelecnum.\arabic{equation}}
+\renewcommand{\thefigure}{\thelecnum.\arabic{figure}}
+\renewcommand{\thetable}{\thelecnum.\arabic{table}}
+
+%
+% The following macro is used to generate the header.
+%
+\newcommand{\lecture}[4]{
+   \pagestyle{myheadings}
+   \thispagestyle{plain}
+   \newpage
+   \setcounter{lecnum}{#1}
+   \setcounter{page}{1}
+   \noindent
+   \begin{center}
+   \framebox{
+      \vbox{\vspace{2mm}
+    \hbox to 6.28in { {\bf EE 382C/361C: Multicore Computing
+                        \hfill Fall 2016} }
+       \vspace{4mm}
+       \hbox to 6.28in { {\Large \hfill Lecture #1: #2  \hfill} }
+       \vspace{2mm}
+       \hbox to 6.28in { {\it Lecturer: #3 \hfill Scribe: #4} }
+      \vspace{2mm}}
+   }
+   \end{center}
+   \markboth{Lecture #1: #2}{Lecture #1: #2}
+   %{\bf Disclaimer}: {\it These notes have not been subjected to the
+   %usual scrutiny reserved for formal publications.  They may be distributed
+   %outside this class only with the permission of the Instructor.}
+   \vspace*{4mm}
+}
+
+%
+% Convention for citations is authors' initials followed by the year.
+% For example, to cite a paper by Leighton and Maggs you would type
+% \cite{LM89}, and to cite a paper by Strassen you would type \cite{S69}.
+% (To avoid bibliography problems, for now we redefine the \cite command.)
+% Also commands that create a suitable format for the reference list.
+\renewcommand{\cite}[1]{[#1]}
+\def\beginrefs{\begin{list}%
+        {[\arabic{equation}]}{\usecounter{equation}
+         \setlength{\leftmargin}{2.0truecm}\setlength{\labelsep}{0.4truecm}%
+         \setlength{\labelwidth}{1.6truecm}}}
+\def\endrefs{\end{list}}
+\def\bibentry#1{\item[\hbox{[#1]}]}
+
+%Use this command for a figure; it puts a figure in wherever you want it.
+%usage: \fig{NUMBER}{SPACE-IN-INCHES}{CAPTION}
+\newcommand{\fig}[3]{
+			\vspace{#2}
+			\begin{center}
+			Figure \thelecnum.#1:~#3
+			\end{center}
+	}
+% Use these for theorems, lemmas, proofs, etc.
+\newtheorem{theorem}{Theorem}[lecnum]
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{proposition}[theorem]{Proposition}
+\newtheorem{claim}[theorem]{Claim}
+\newtheorem{corollary}[theorem]{Corollary}
+\newtheorem{definition}[theorem]{Definition}
+\newenvironment{proof}{{\bf Proof:}}{\hfill\rule{2mm}{2mm}}
+
+% **** IF YOU WANT TO DEFINE ADDITIONAL MACROS FOR YOURSELF, PUT THEM HERE:
+
+\begin{document}
+%FILL IN THE RIGHT INFO.
+%\lecture{**LECTURE-NUMBER**}{**DATE**}{**LECTURER**}{**SCRIBE**}
+\lecture{1}{September 20}{Vijay Garg}{Shuang Song}
+%\footnotetext{These notes are partially based on those of Nigel Mansell.}
+
+% **** YOUR NOTES GO HERE:
+
+% Some general latex examples and examples making use of the
+% macros follow.  
+%**** IN GENERAL, BE BRIEF. LONG SCRIBE NOTES, NO MATTER HOW WELL WRITTEN,
+%**** ARE NEVER READ BY ANYBODY.
+\section{Introduction}
+%Students in EE 382C are required to scribe lecture notes for one lecture.
+%These lecture notes will be done using the document processing system called Latex.
+%We have posted the file {\em scribe.tex} on the Canvas system. You can run {\tt pdflatex}
+%on that file to generate {\em scribe.pdf}. The remaining document shows usage of
+%some of the commands in Latex.
+\indent In this lecture, we first go over the GetAndSet operations and how do use them to achieve mutual exclusion. Additionally, we introduce the Queue locks and discuss the pros and cons of each queue lock. 
+\indent Outline is shown as follows:
+\begin{enumerate}
+	\item Building locks using GetAndSet
+	\item Building locks using GetAndGetAndSet
+	\item Using backoff 
+	\item Anderson's lock
+	\item CLH queue lock
+	\item MCS queue lock
+\end{enumerate}
+
+
+\section{Locks with Get-and-Set Operation}
+Locks for mutual exclusion can be built using simple r\/w instructions, which requires n memory locations for n threads. It is easier to use instructions with higher atomicity, such as the GetAndSet  operation. The example lock is shown in Algorithm \ref{alg:getandset}.
+
+\begin{algorithm}
+\caption{Building Locks Using GetAndSet.}
+\begin{algorithmic}[1]
+\State import java.util.concurrent.atomic.*;
+\State public class GetAndSet implements MyLock \{
+\State \indent AtomicBoolean isOccupied = new AtomicBoolean(false);
+\State \indent public void lock() \{
+\State \indent \indent while (isOccupied.getAndSet(true))\{ \Comment{isoccupied is true, then busy wait}
+\State \indent \indent \indent Thread.yield(); \Comment{skip();}
+\State \indent \indent \} \Comment{isoccupied is false, means CS is empty, thread goes to CS and set isoccupied back to true}
+\State \indent \}
+\State \indent public void unlock() \{
+\State \indent \indent isOccupied.set(false);
+\State \indent \}
+\State \}
+\end{algorithmic}
+\label{alg:getandset}
+\end{algorithm}
+
+The problem of this approach can be summarized into three points, which are busy-wait, starvation freedom, and expensive getAndSet() operation.
+Keep checking by using getAndSet operation can cause the high contention for the shared bus. The goal here is to optimize the algorithm and alleviate the bus contention. The algorithm to achieve this goal is shown in Algorithm \ref{alg:getandgetandset}.
+
+\begin{algorithm}
+\caption{Building Locks Using GetAndGetAndSet.}
+\begin{algorithmic}[1]
+\State import java.util.concurrent.atomic.*;
+\State public class GetAndGetAndSet implements MyLock \{
+\State \indent AtomicBoolean isOccupied = new AtomicBoolean(false);
+\State \indent public void lock() \{
+\State \indent \indent while (true)\{
+\State \indent \indent \indent while (isOccupied.get()) \{
+\State \indent \indent \indent \}
+\State \indent \indent \indent if (! isOccupied.getAndSet(true)) return;
+\State \indent \indent \} 
+\State \indent \}
+\State \indent public void unlock() \{
+\State \indent \indent isOccupied.set(false);
+\State \indent \}
+\State \}
+\end{algorithmic}
+\label{alg:getandgetandset}
+\end{algorithm}
+
+As can be seen, \textit{isOccupied.get()} is a read instruction, which is served in cache mostly. Checking \textit{isOccupied.get()} before using getAndSet reduces contention of the bus. Therefore, compared to Algorithm \ref{alg:getandset}, the second implementation results in faster accesses to the critical session.
+
+However, if all these threads now get that \textit{isOccupied.get()} is \textit{false} and try to set it to true by using getAndSet, only one of them can succeeds but all of them ending up causing high bus contention again. \textit{Backoff}, illustrated in Algorithm \ref{alg:backoff}, is an useful idea to solve this issue. The thread fails to set getAndSet, it backs off for a certain period of time. 
+
+\begin{algorithm}
+\caption{Building Locks Using GetAndGetAndSet.}
+\begin{algorithmic}[1]
+\State import java.util.concurrent.atomic.*;
+\State public class GetAndGetAndSet implements MyLock \{
+\State \indent AtomicBoolean isOccupied = new AtomicBoolean(false);
+\State \indent public void lock() \{
+\State \indent \indent while (true)\{
+\State \indent \indent \indent while (isOccupied.get()) \{
+\State \indent \indent \indent \}
+\State \indent \indent \indent if (! isOccupied.getAndSet(true)) return;
+\State \indent \indent \indent else \{
+\State \indent \indent \indent \indent int timeToSleep = calculateDuration();
+\State \indent \indent \indent \indent Thread.sleep(timeToSleep);
+\State \indent \indent \indent \}
+\State \indent \indent \} 
+\State \indent \}
+\State \indent public void unlock() \{
+\State \indent \indent isOccupied.set(false);
+\State \indent \}
+\State \}
+\end{algorithmic}
+\label{alg:backoff}
+\end{algorithm}
+
+
+\section{Queue Locks}
+Previous approaches require threads to spin on the shared memory location to achieve mutual exclusion. To avoid spinnings, we discuss three methods here, which are Anderson's lock (fixed size array), CLH lock (implicit linked list) and MCS lock (explicit linked list). 
+
+\begin{algorithm}
+\caption{pseudo code for Anderson Lock}
+\begin{algorithmic}[1]
+\State public class AndersonLock \{
+\State \indent AtomicInteger tailSlot = new AtomicInteger (0); 
+\State \indent boolean [ ] Avaliable ;
+\State \indent ThreadLocal \textless Integer\textgreater mySlot; \Comment{initialize to 0} \newline
+\State \indent public AndersonLock (int n) \{ \Comment{constructor}
+\State \indent \} \Comment{all Available false except Available[0]}
+\State \indent public void lock() \{
+\State \indent \indent mySlot.set(tailSlot.getAndIncrement() \% n);
+\State \indent \indent spinUntil (Available[mySlot]);
+\State \indent \}
+\State \indent public void unlock() \{
+\State \indent \indent Available[mySlot.get()] = false;
+\State \indent \indent Available[(mySlot.get()+1) \% n] = true;
+\State \indent \}
+\State \}
+\end{algorithmic}
+\label{alg:anderson}
+\end{algorithm}
+
+\subsection{Anderson's Lock}
+Anderson's lock uses a circular array \textit{Available} of size n (shown in Figure \ref{fig:ql}), which is as big as the number of threads. Different threads waiting for the critical section spin on their own slots in the array, so it avoids the problem of multiple threads spinning on the same variable. The \textit{TailSlot} is an atomic integer that is pointing to the next available slot in the array. Any thread acquires the lock will read the value of \textit{tailSlot} in its local variable \textit{mySlot} and calculates the next available slot by using atomic operation \textit{getAndIncrement()}. It then spins on the \textit{Available[mySlot]} until the slot becomes available. In this algorithm, only one thread is affected when a thread leaves the critical section, and all the spinnings result in local cache accesses. Anderson's lock has no starvation problem. It is shown in Algorithm \ref{alg:anderson}. 
+
+\begin{figure}[ht]
+  \centering
+  \includegraphics[height=0.250\textheight,width=0.50\linewidth]{./queuelock.pdf} 
+  \caption{Circular Array}
+  \label{fig:ql}
+\end{figure}
+
+
+
+The problem with Anderson lock is that it requires a separate array for each lock. Like, a system that uses m locks shared among n threads will use up to O(mn) space.
+
+\subsection{CLH Queue Lock}
+
+To reduce the space consumption in Anderson's lock, CLH uses a dynamic linked list instead of fixed size array. Any thread that wants to get lock inserts a node in the linked list. The insertion in the linked list must be atomic. The sub-algorithm is shown in Algorithm \ref{alg:clh} and full algorithm can be found at \cite{1}. It is important to note that if the thread exists the CS wants to enter the CS again, it cannot reuse its own node because the next thread may still spinning on that node's field. Therefore, it uses the predecessor in the \textit{unlock} function.
+\newline
+The linked list is virtual. The thread that is spinning has the variable \textit{pred} that points to the predecessor node in the linked list.
+\begin{algorithm}
+\caption{pseudo code for CLH Queue Lock}
+\begin{algorithmic}[1]
+\State class Node \{
+\State \indent boolean locked;
+\State \}
+\State AtomicReference\textless Node\textgreater tailNode;
+\State ThreadLocal\textless Node\textgreater myNode;
+\State ThreadLocal\textless Node\textgreater pred;
+\State lock() \{
+\State \indent myNode.locked = true;
+\State \indent pred = tailNode.getAndSet(myNode);
+\State \indent while(pred.locked) \{ noops; \}
+\State \}
+\State unlock() \{
+\State \indent myNode.locked = false;
+\State \indent myNode = pred; \Comment{reuse pred node for future}
+\State \}
+\end{algorithmic}
+\label{alg:clh}
+\end{algorithm}
+
+\begin{algorithm}
+\caption{pseudo code for MCS Queue Lock}
+\begin{algorithmic}[1]
+\State class QNode \{
+\State \indent boolean locked; \Comment{init true}
+\State \indent QNode next; \Comment{init null}
+\State \}
+\State lock() \{
+\State \indent QNode pred = tailNode.getAndSet(myNode);
+\State \indent pred.next = myNode; 
+\State \indent while(myNode.locked) \{ noops; \}
+\State \}
+\State unlock() \{
+\State \indent if (myNode.next == null) \{
+\State \indent \indent if ( tailNode.compareAndSet(myNode, null)) return;
+\State \indent \indent while (myNode.next == null) \{ noops; \}
+\State \indent \}
+\State \indent myNode.next.locked = false;
+\State \indent myNode.next = null;
+\State \}
+\end{algorithmic}
+\label{alg:mcs}
+\end{algorithm}
+
+\subsection{MCS Queue Lock}
+It is known that access to the core's local memory is faster than accessing to the local memory of another core. CLH algorithm results in thread spinning on remote locations in such architecture. MCS avoids the remote spinning. Same as CLH, MCS maintain a queue. However, it is an explicit linked list. 
+The tricky part of MCS is in the \textit{unlock()} function. When a thread \textit{p} exits the CS, it checks if there is any node linked next to its node. If there exits such node, then it makes the \textit{locked} false and removes its node from the linked list. When it finds no node linked next to it, there can be two cases for this. First, no thread has been inserted yet. Therefore, we can find that \textit{tailNode} still points to \textit{myNode}. It can be simply reset to null. In the second case, thread \textit{p} waits until the next is not null. Then it can set the locked field for that node to be false as usual. This is shown in Algorithm \ref{alg:mcs}.
+
+
+\section*{References}
+\beginrefs
+\bibentry{1} https://github.com/vijaygarg1/UT-Garg-EE382C-EE361C-Multicore
+\endrefs
+
+
+\end{document}
+
+
+
+
+
